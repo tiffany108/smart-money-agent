@@ -1,0 +1,20 @@
+{
+  "name": "smart-money-collector",
+  "version": "1.0.0",
+  "description": "News collector, AI summariser & webhook for Smart Money agent — HK & UK",
+  "type": "module",
+  "main": "webhook.js",
+  "scripts": {
+    "start": "node webhook.js",
+    "collect": "node collector.js",
+    "summarise": "node summariser.js",
+    "setup": "node setup-db.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "rss-parser": "^3.13.0",
+    "node-fetch": "^3.3.2",
+    "dotenv": "^16.3.1"
+  }
+}
