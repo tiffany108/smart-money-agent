@@ -8,6 +8,9 @@
     "start": "node webhook.js",
     "collect": "node collector.js",
     "summarise": "node summariser.js",
+    "schedule": "node scheduler.js",
+    "publish": "node publisher.js",
+    "publish:live": "cross-env DRY_RUN=false PUBLISH_ENABLED=true node publisher.js",
     "setup": "node setup-db.js"
   },
   "dependencies": {
@@ -16,5 +19,11 @@
     "rss-parser": "^3.13.0",
     "node-fetch": "^3.3.2",
     "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

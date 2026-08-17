@@ -1,0 +1,83 @@
+name: Smart Money — Publish to Facebook
+
+# DELIBERATELY SEPARATE from full-pipeline.yml.
+#
+# Collecting news is harmless and can run freely. Publishing to a public Page
+# is not. Keeping this in its own workflow means you can disable publishing
+# from the Actions tab without touching collection.
+#
+# THIS WORKFLOW IS DISABLED BY DEFAULT:
+#   - No schedule. Manual trigger only.
+#   - Dry run unless you explicitly choose otherwise when running it.
+#   - Live publishing also requires the PUBLISH_ENABLED repo variable to be
+#     exactly "true", so a mis-click alone cannot post.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Dry run, or actually publish?'
+        required: true
+        default: 'dry-run'
+        type: choice
+        options:
+          - dry-run
+          - LIVE-publish
+      max_posts:
+        description: 'Maximum posts to publish this run'
+        required: false
+        default: '1'
+
+  # To publish on a schedule later, uncomment this. Leave it off until you
+  # have watched several dry runs produce exactly what you expect.
+  # schedule:
+  #   - cron: '0 7,18 * * *'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      # Queue approved posts. Safe — touches only the database.
+      - name: Schedule approved posts
+        run: npm run schedule
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      # Announce clearly which mode we are in — this shows in the log header.
+      - name: Confirm publishing mode
+        run: |
+          if [ "${{ inputs.mode }}" = "LIVE-publish" ]; then
+            echo "::warning::LIVE MODE — this run will post publicly to the Facebook Page"
+          else
+            echo "Dry run — nothing will be posted"
+          fi
+
+      - name: Publish due posts
+        run: npm run publish
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          META_PAGE_ACCESS_TOKEN: ${{ secrets.META_PAGE_ACCESS_TOKEN }}
+          MAX_POSTS_PER_RUN: ${{ inputs.max_posts }}
+
+          # Both must line up for anything to be posted:
+          #   - you chose LIVE-publish when starting the run
+          #   - the repo variable PUBLISH_ENABLED is exactly "true"
+          DRY_RUN: ${{ inputs.mode == 'LIVE-publish' && 'false' || 'true' }}
+          PUBLISH_ENABLED: ${{ vars.PUBLISH_ENABLED }}
