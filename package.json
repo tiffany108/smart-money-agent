@@ -8,6 +8,7 @@
     "start": "node webhook.js",
     "collect": "node collector.js",
     "summarise": "node summariser.js",
+    "export": "node export-drafts.js",
     "schedule": "node scheduler.js",
     "publish": "node publisher.js",
     "publish:live": "cross-env DRY_RUN=false PUBLISH_ENABLED=true node publisher.js",
