@@ -226,6 +226,23 @@ RESPOND IN THIS EXACT JSON FORMAT (no markdown, no backticks):
 //  GENERATE POST
 // ─────────────────────────────────────────────
 
+/**
+ * Pull the text out of a Messages API response.
+ *
+ * Do NOT use response.content[0].text — the first block is not guaranteed to be
+ * a text block, and newer models can return other block types first. When that
+ * happens content[0].text is undefined and .trim() throws, which previously
+ * failed every single generation while the job still reported success.
+ */
+function extractText(response) {
+  const block = response?.content?.find(b => b?.type === 'text' && typeof b.text === 'string');
+  if (!block) {
+    const shape = (response?.content || []).map(b => b?.type).join(', ') || 'empty';
+    throw new Error(`No text block in response (blocks: ${shape})`);
+  }
+  return block.text;
+}
+
 async function generatePost(article, market, platform) {
   try {
     const response = await anthropic.messages.create({
@@ -234,7 +251,7 @@ async function generatePost(article, market, platform) {
       messages: [{ role: 'user', content: buildPostPrompt(article, market, platform) }],
     });
 
-    const clean = response.content[0].text.trim().replace(/```json|```/g, '').trim();
+    const clean = extractText(response).trim().replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(clean);
     if (!parsed.body || !parsed.hashtags) return null;
     return parsed;
@@ -257,7 +274,7 @@ async function generateSuggestions(article, market) {
       messages: [{ role: 'user', content: buildSuggestionPrompt(article, market) }],
     });
 
-    const clean = response.content[0].text.trim().replace(/```json|```/g, '').trim();
+    const clean = extractText(response).trim().replace(/```json|```/g, '').trim();
     return JSON.parse(clean);
 
   } catch (err) {
@@ -380,6 +397,13 @@ async function run() {
 
   console.log('\n' + '─'.repeat(60));
   console.log(`\n✅ ${success} processed | ❌ ${fail} failed`);
+
+  // Fail loudly if nothing worked. Previously every article could error and the
+  // script still exited 0, so CI reported a green run that had produced nothing.
+  if (success === 0 && fail > 0) {
+    console.error(`\n💥 All ${fail} articles failed — treating this run as a failure.`);
+    process.exit(1);
+  }
 
   const { count } = await supabase
     .from('generated_posts')
