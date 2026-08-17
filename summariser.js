@@ -20,9 +20,19 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-const PLATFORMS = ['instagram', 'linkedin', 'facebook', 'threads'];
-const BATCH_SIZE = 5;
-const MODEL = 'claude-sonnet-4-6';
+// Only generate posts for platforms we can actually publish to. Every extra
+// platform multiplies the Anthropic bill for drafts nothing consumes —
+// Instagram, LinkedIn and Threads each need a different publishing API that
+// does not exist yet (see PUBLISHER-DESIGN.md). Widen this the moment one does.
+//
+// Override without editing code:  SUMMARISE_PLATFORMS=facebook,instagram
+const PLATFORMS = (process.env.SUMMARISE_PLATFORMS || 'facebook')
+  .split(',').map(s => s.trim()).filter(Boolean);
+
+const BATCH_SIZE = parseInt(process.env.SUMMARISE_BATCH_SIZE || '5', 10);
+// Sonnet 5 rather than 4.6: newer, and $2/$10 per MTok against 4.6's $3/$15 —
+// roughly a third cheaper for equivalent quality on short social copy.
+const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5';
 
 // ─────────────────────────────────────────────
 //  PLATFORM SPECS
@@ -54,6 +64,15 @@ const PLATFORM_SPECS = {
     format: 'One punchy insight or tip, no fluff',
   },
 };
+
+// Fail fast on a typo in SUMMARISE_PLATFORMS rather than crashing partway
+// through a run, after credits have already been spent.
+const unknownPlatforms = PLATFORMS.filter(p => !PLATFORM_SPECS[p]);
+if (unknownPlatforms.length > 0) {
+  console.error(`❌ Unknown platform(s): ${unknownPlatforms.join(', ')}`);
+  console.error(`   Valid options: ${Object.keys(PLATFORM_SPECS).join(', ')}`);
+  process.exit(1);
+}
 
 // ─────────────────────────────────────────────
 //  MARKET CONFIG
