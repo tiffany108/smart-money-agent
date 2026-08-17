@@ -270,7 +270,11 @@ async function generateSuggestions(article, market) {
   try {
     const response = await anthropic.messages.create({
       model: MODEL,
-      max_tokens: 1024,
+      // 4096, not 1024. The suggestion package is a much larger JSON object than
+      // a social post, and 1024 tokens of punctuation-heavy JSON runs out at
+      // roughly 2,500 characters — which is exactly where these were truncating,
+      // producing "Unterminated string in JSON at position ~2100-2600".
+      max_tokens: 4096,
       messages: [{ role: 'user', content: buildSuggestionPrompt(article, market) }],
     });
 
