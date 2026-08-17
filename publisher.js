@@ -219,7 +219,10 @@ async function run() {
   }
 }
 
-run().catch(err => {
-  console.error('💥 Publisher crashed:', err);
-  process.exit(1);
-});
+// Exit explicitly — the Supabase realtime socket keeps Node alive otherwise.
+run()
+  .then(() => process.exit(0))
+  .catch(err => {
+    console.error('💥 Publisher crashed:', err);
+    process.exit(1);
+  });

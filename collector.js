@@ -381,7 +381,12 @@ async function run() {
   console.log('\n✅ Collection run complete!\n');
 }
 
-run().catch(err => {
-  console.error('💥 Collector crashed:', err);
-  process.exit(1);
-});
+// Exit explicitly. The Supabase client holds an open realtime socket that
+// keeps Node's event loop alive, so without this the process finishes its
+// work and then hangs until CI kills it.
+run()
+  .then(() => process.exit(0))
+  .catch(err => {
+    console.error('💥 Collector crashed:', err);
+    process.exit(1);
+  });

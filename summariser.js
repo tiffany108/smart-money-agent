@@ -371,7 +371,11 @@ async function run() {
   console.log('\n✅ Done! Check generated_posts in Supabase.\n');
 }
 
-run().catch(err => {
-  console.error('💥 Crashed:', err);
-  process.exit(1);
-});
+// Exit explicitly — see the note in collector.js. The Supabase realtime
+// socket otherwise keeps the process alive after the work is done.
+run()
+  .then(() => process.exit(0))
+  .catch(err => {
+    console.error('💥 Crashed:', err);
+    process.exit(1);
+  });

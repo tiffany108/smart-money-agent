@@ -213,7 +213,10 @@ async function run() {
   console.log('\n✅ Scheduling complete. Nothing published — run publisher.js for that.\n');
 }
 
-run().catch(err => {
-  console.error('💥 Scheduler crashed:', err);
-  process.exit(1);
-});
+// Exit explicitly — the Supabase realtime socket keeps Node alive otherwise.
+run()
+  .then(() => process.exit(0))
+  .catch(err => {
+    console.error('💥 Scheduler crashed:', err);
+    process.exit(1);
+  });
