@@ -20,6 +20,9 @@ const supabase = createClient(
 
 const PLATFORM = process.env.EXPORT_PLATFORM || 'facebook';
 const LIMIT    = parseInt(process.env.EXPORT_LIMIT || '30', 10);
+
+// Deliberately excludes 'published'. Once you mark a post as published it drops
+// out of future exports, so you never see the same post twice.
 const STATUSES = (process.env.EXPORT_STATUSES || 'draft,approved')
   .split(',').map(s => s.trim()).filter(Boolean);
 const OUTFILE  = process.env.EXPORT_FILE || 'drafts.html';
@@ -59,7 +62,7 @@ function buildHtml(posts) {
     <footer>
       <button class="copy" data-target="text-${i}">Copy post</button>
       ${article.url ? `<a class="src" href="${esc(article.url)}" target="_blank" rel="noopener">Source: ${esc(article.source_name || 'link')} ↗</a>` : ''}
-      <label class="done"><input type="checkbox" data-id="${esc(p.id)}"> Posted</label>
+      <label class="done"><input type="checkbox" class="posted-tick" data-id="${esc(p.id)}"> Posted</label>
     </footer>
   </article>`;
   }).join('\n');
@@ -106,6 +109,17 @@ function buildHtml(posts) {
   .note { background: #fff7ed; border-left: 3px solid #f59e0b;
           padding: .8rem 1rem; margin-bottom: 1.5rem; font-size: .9rem; }
   .empty { text-align: center; color: #888; padding: 3rem 0; }
+
+  .tray { position: fixed; left: 0; right: 0; bottom: 0; background: #1a1a1a;
+          color: #fff; transform: translateY(110%); transition: transform .18s ease; }
+  .tray.visible { transform: translateY(0); }
+  .tray-inner { max-width: 780px; margin: 0 auto; padding: .85rem 1rem;
+                display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  #tray-count { font-weight: 600; }
+  #tray-sql { background: #16a34a; color: #fff; border: 0; border-radius: 6px;
+              padding: .5rem 1rem; font-size: .88rem; font-weight: 600; cursor: pointer; }
+  #tray-sql:hover { background: #15803d; }
+  .tray-hint { color: #aaa; font-size: .82rem; margin-left: auto; }
 </style>
 </head>
 <body>
@@ -121,9 +135,55 @@ function buildHtml(posts) {
   anywhere, and it does not update the database.
 </div>
 
-${posts.length ? cards : '<p class="empty">No drafts found. Run <code>npm run collect</code> then <code>npm run summarise</code> to generate some.</p>'}
+${posts.length ? cards : '<p class="empty">No unposted drafts. Run <code>npm run collect</code> then <code>npm run summarise</code> to generate more.</p>'}
+
+${posts.length ? `
+<div class="tray" id="tray">
+  <div class="tray-inner">
+    <span id="tray-count">0 ticked</span>
+    <button id="tray-sql">Copy SQL to mark them posted</button>
+    <span class="tray-hint">Paste into Supabase → SQL Editor → Run</span>
+  </div>
+</div>` : ''}
 
 <script>
+  // ── Mark-as-posted tray ────────────────────────────────────────────────
+  // The tick alone does nothing to the database. This turns the ticked posts
+  // into one UPDATE statement you run in Supabase, after which they stop
+  // appearing in future exports.
+  const tray      = document.getElementById('tray');
+  const trayCount = document.getElementById('tray-count');
+  const traySql   = document.getElementById('tray-sql');
+
+  function tickedIds() {
+    return [...document.querySelectorAll('.posted-tick:checked')].map(c => c.dataset.id);
+  }
+
+  function refreshTray() {
+    if (!tray) return;
+    const n = tickedIds().length;
+    trayCount.textContent = n + (n === 1 ? ' ticked' : ' ticked');
+    tray.classList.toggle('visible', n > 0);
+  }
+
+  if (traySql) {
+    traySql.addEventListener('click', async () => {
+      const ids = tickedIds();
+      if (!ids.length) return;
+      const sql = "update generated_posts set status = 'published' where id in (\\n  " +
+                  ids.map(i => "'" + i + "'").join(',\\n  ') + "\\n);";
+      try {
+        await navigator.clipboard.writeText(sql);
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = sql; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); ta.remove();
+      }
+      traySql.textContent = 'SQL copied ✓ — paste it into Supabase';
+      setTimeout(() => { traySql.textContent = 'Copy SQL to mark them posted'; }, 2600);
+    });
+  }
+
   document.querySelectorAll('button.copy').forEach(btn => {
     btn.addEventListener('click', async () => {
       const text = document.getElementById(btn.dataset.target).textContent;
@@ -143,8 +203,11 @@ ${posts.length ? cards : '<p class="empty">No drafts found. Run <code>npm run co
   document.querySelectorAll('.done input').forEach(cb => {
     cb.addEventListener('change', () => {
       cb.closest('.card').classList.toggle('is-done', cb.checked);
+      refreshTray();
     });
   });
+
+  refreshTray();
 </script>
 
 </body>
